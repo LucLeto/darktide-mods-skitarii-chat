@@ -10,7 +10,7 @@ Type `/skc` followed by a message:
 
 Players who have Skitarii Chat installed see the readable message locally, marked with Darktide's Mechanicus glyph. Players without the mod see an opaque, chat-safe encoded string instead.
 
-Normal chat is unchanged, and commands such as `/w`, `/invite`, and `/help` continue to work normally.
+Normal chat is unchanged, and other commands continue to work normally.
 
 > [!IMPORTANT]
 > Skitarii Chat is thematic encoding, not encryption. It does not provide privacy or protect sensitive information.
