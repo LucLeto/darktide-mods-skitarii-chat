@@ -7,10 +7,30 @@ return {
 	options = {
 		widgets = {
 			{
-				setting_id = "enable_skitarii_chat",
+				setting_id = "encode_mode",
+				type = "dropdown",
+				default_value = "command",
+				tooltip = "encode_mode_tooltip",
+				options = {
+					{ text = "encode_mode_off", value = "off" },
+					{ text = "encode_mode_always", value = "always" },
+					{ text = "encode_mode_command", value = "command" },
+				},
+			},
+			{
+				setting_id = "toggle_skitarii_chat",
+				type = "keybind",
+				default_value = {},
+				keybind_trigger = "pressed",
+				keybind_type = "mod_toggle",
+				keybind_global = true,
+				tooltip = "toggle_skitarii_chat_tooltip",
+			},
+			{
+				setting_id = "decode_incoming_messages",
 				type = "checkbox",
 				default_value = true,
-				tooltip = "enable_skitarii_chat_tooltip",
+				tooltip = "decode_incoming_messages_tooltip",
 			},
 			{
 				setting_id = "show_decoded_marker",
