@@ -61,6 +61,12 @@ return {
 	encoding_disabled = {
 		en = "Skitarii Chat outgoing encoding is off.",
 	},
+	safe_word_triggered = {
+		en = "Skitarii Chat encoding disabled for this location.",
+	},
+	safe_word_encoding_disabled = {
+		en = "Skitarii Chat encoding was stopped for this location.",
+	},
 	chat_channel_unavailable = {
 		en = "Skitarii Chat could not find an active chat channel.",
 	},

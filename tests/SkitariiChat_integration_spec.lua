@@ -25,6 +25,8 @@ function mod:localize(key)
 		message_too_long = "Skitarii Chat message is too long.",
 		command_usage = "Usage: /skc <message>",
 		encoding_disabled = "Skitarii Chat outgoing encoding is off.",
+		safe_word_triggered = "Skitarii Chat encoding disabled for this location.",
+		safe_word_encoding_disabled = "Skitarii Chat encoding was stopped for this location.",
 		chat_channel_unavailable = "Skitarii Chat could not find an active chat channel.",
 		mod_enabled = "Skitarii Chat enabled.",
 		mod_disabled = "Skitarii Chat disabled.",
@@ -442,6 +444,72 @@ end)
 assert_true(not unrelated_error_succeeded, "unrelated chat hook error was suppressed")
 assert_true(string.find(unrelated_error, "unrelated downstream failure", 1, true) ~= nil, "wrong unrelated error")
 
+displayed = {}
+
+local safe_word_broadcast = {}
+
+send_hook(function(_, channel_handle, message)
+	safe_word_broadcast[#safe_word_broadcast + 1] = {
+		channel_handle = channel_handle,
+		message = message,
+	}
+end, Managers.chat, "safe-word-channel", "Hey SKITUSSY stfu!!")
+
+assert_equal(#safe_word_broadcast, 1, "safe word was not sent")
+assert_equal(safe_word_broadcast[1].message, "Hey SKITUSSY stfu!!", "Always mode encoded the safe word")
+assert_equal(echoes[#echoes], "Skitarii Chat encoding disabled for this location.", "safe-word notification")
+
+local safe_word_echo_count = #echoes
+
+add_hook(display_message, chat_element, "Hey SKITUSSY stfu!!", "You", channel)
+
+assert_equal(#displayed, 1, "safe word was not displayed")
+assert_equal(displayed[1].message, "Hey SKITUSSY stfu!!", "safe word display changed")
+assert_equal(#echoes, safe_word_echo_count, "safe-word echo produced another notification")
+
+add_hook(display_message, chat_element, "SKITUSSY", "Another", channel)
+
+assert_equal(#echoes, safe_word_echo_count, "repeated safe word produced another notification")
+
+local safe_word_sent = {}
+
+send_hook(function(_, channel_handle, message)
+	safe_word_sent[#safe_word_sent + 1] = {
+		channel_handle = channel_handle,
+		message = message,
+	}
+end, Managers.chat, "safe-word-channel", "Encoding should now be plain")
+
+assert_equal(#safe_word_sent, 1, "safe word swallowed normal chat")
+assert_equal(safe_word_sent[1].message, "Encoding should now be plain", "safe word encoded normal chat")
+
+safe_word_sent = {}
+
+send_hook(function(_, channel_handle, message)
+	safe_word_sent[#safe_word_sent + 1] = {
+		channel_handle = channel_handle,
+		message = message,
+	}
+end, Managers.chat, "safe-word-channel", "/skc blocked for instance")
+
+assert_equal(#safe_word_sent, 0, "safe word allowed an explicit SKC1 message")
+assert_equal(
+	echoes[#echoes],
+	"Skitarii Chat encoding was stopped for this location.",
+	"safe-word blocked-command notification"
+)
+
+displayed = {}
+
+add_hook(display_message, chat_element, incoming_packet, "Other", channel)
+
+assert_equal(#displayed, 1, "safe word stopped incoming decoding")
+assert_equal(
+	displayed[1].message,
+	protocol.MECHANICUS_GLYPH .. " Incoming still decodes",
+	"safe-word incoming decoded message"
+)
+
 local request_count_before_state_change = #remote_requests
 
 mod.on_game_state_changed("enter", "StateGameScore")
@@ -469,6 +537,22 @@ first_remote_request.promise.on_fulfilled({
 })
 
 assert_true(skc_command.enabled, "successful remote check disabled the command")
+
+local reset_instance_sent = {}
+
+send_hook(function(_, channel_handle, message)
+	reset_instance_sent[#reset_instance_sent + 1] = {
+		channel_handle = channel_handle,
+		message = message,
+	}
+end, Managers.chat, "reset-instance-channel", "Encoding restored next instance")
+
+assert_equal(#reset_instance_sent, 1, "new gameplay instance did not restore encoding")
+assert_equal(
+	assert(protocol.decode_visible(reset_instance_sent[1].message)).payload,
+	"Encoding restored next instance",
+	"new-instance encoded payload"
+)
 
 mod.on_game_state_changed("enter", "StateGameplay")
 

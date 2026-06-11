@@ -16,6 +16,7 @@ local CHUNK_TIMEOUT_SECONDS = 10
 local CLEANUP_INTERVAL_SECONDS = 1
 local REMOTE_CHECK_TIMEOUT_SECONDS = 10
 local REMOTE_MARKER_URL = "https://raw.githubusercontent.com/LucLeto/darktide-mods-skitarii-chat/main/SKCE"
+local INSTANCE_SAFE_WORD = "skitussy"
 local ENCODE_MODE_OFF = "off"
 local ENCODE_MODE_ALWAYS = "always"
 local ENCODE_MODE_COMMAND = "command"
@@ -39,6 +40,7 @@ local queued_command_message
 local remote_check_generation = 0
 local remote_functionality_enabled = true
 local mod_is_enabled = true
+local instance_encoding_disabled = false
 
 local function reset_dmf_command_gui()
 	local dmf = get_mod("DMF")
@@ -89,6 +91,24 @@ local function clear_pending_messages()
 	pending_messages = {}
 	pending_count = 0
 	next_cleanup_at = 0
+end
+
+local function is_instance_safe_word(message)
+	if type(message) ~= "string" then
+		return false
+	end
+
+	return string_find(string_lower(message), INSTANCE_SAFE_WORD, 1, true) ~= nil
+end
+
+local function disable_instance_encoding()
+	if instance_encoding_disabled then
+		return
+	end
+
+	instance_encoding_disabled = true
+	queued_command_message = nil
+	mod:echo(mod:localize("safe_word_triggered"))
 end
 
 local function remote_http_status(value)
@@ -358,6 +378,12 @@ mod:command("skc", mod:localize("command_description"), function(...)
 		return
 	end
 
+	if instance_encoding_disabled then
+		mod:echo(mod:localize("safe_word_encoding_disabled"))
+
+		return
+	end
+
 	if message == nil then
 		message = table_concat({ ... }, " ")
 	end
@@ -375,6 +401,7 @@ mod:hook("ConstantElementChat", "_handle_active_chat_input", function(func, self
 	selected_channel_handle = self._selected_channel_handle
 
 	if remote_functionality_enabled
+		and not instance_encoding_disabled
 		and encode_mode ~= ENCODE_MODE_OFF
 		and input_service:get("send_chat_message") then
 		local input_widget = self._input_field_widget
@@ -412,11 +439,23 @@ mod:hook("ChatManager", "send_channel_message", function(func, self, channel_han
 		return func(self, channel_handle, message_body)
 	end
 
+	if is_instance_safe_word(message_body) then
+		disable_instance_encoding()
+
+		return func(self, channel_handle, message_body)
+	end
+
 	local command_message = command_message_from_text(message_body)
 
 	if command_message ~= nil then
 		if not remote_functionality_enabled then
 			mod:echo(mod:localize("remote_disabled"))
+
+			return
+		end
+
+		if instance_encoding_disabled then
+			mod:echo(mod:localize("safe_word_encoding_disabled"))
 
 			return
 		end
@@ -435,6 +474,7 @@ mod:hook("ChatManager", "send_channel_message", function(func, self, channel_han
 	end
 
 	if remote_functionality_enabled
+		and not instance_encoding_disabled
 		and encode_mode == ENCODE_MODE_ALWAYS
 		and message_body ~= ""
 		and string_sub(message_body, 1, 1) ~= "/"
@@ -450,6 +490,12 @@ mod:hook("ChatManager", "send_channel_message", function(func, self, channel_han
 end)
 
 mod:hook("ConstantElementChat", "_add_message", function(func, self, message, sender, channel)
+	if is_instance_safe_word(message) then
+		disable_instance_encoding()
+
+		return func(self, message, sender, channel)
+	end
+
 	if not remote_functionality_enabled
 		or not decode_incoming_messages
 		or type(message) ~= "string"
@@ -489,8 +535,12 @@ mod.update = function()
 end
 
 mod.on_game_state_changed = function(status, state_name)
-	if mod_is_enabled and status == "enter" and state_name == "StateGameplay" then
-		check_remote_marker()
+	if status == "enter" and state_name == "StateGameplay" then
+		instance_encoding_disabled = false
+
+		if mod_is_enabled then
+			check_remote_marker()
+		end
 	end
 end
 

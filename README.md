@@ -20,6 +20,7 @@ Normal chat is unchanged, and other commands continue to work normally.
 - Adds the `/skc <message>` chat command.
 - Provides Off, Always, and Command only outgoing encoding modes.
 - Allows incoming SKC1 decoding to be switched off independently.
+- Lets any player stop outgoing encoding for the current location with a shared safe word.
 - Supports a configurable keybind for enabling or disabling the entire mod.
 - Encodes outgoing messages into an opaque Base64url packet.
 - Decodes valid packets locally for other mod users and for the sender.
@@ -111,6 +112,18 @@ Outgoing messages are never encoded. This does not change the separate incoming 
 The optional keybind uses DMF's mod toggle. Disabling the mod stops outgoing encoding, incoming decoding, and the `/skc` command. Re-enabling it restores the configured encoding mode. Skitarii Chat echoes its new enabled or disabled state whenever the keybind is used.
 
 Toggling only affects messages processed afterward. Messages already present in chat history are not revisited, encoded again, decoded again, or otherwise changed.
+
+### Safe word
+
+Any player can send the following as a normal chat message:
+
+```text
+SKITUSSY
+```
+
+Detection is case-insensitive and triggers when `skitussy` appears anywhere in a normal chat message, for example `Hey SKITUSSY stfu!!`. Every Skitarii Chat user who receives it stops encoding outgoing messages for the current mission, hub, or other gameplay instance. In **Always** mode, messages return to ordinary chat; `/skc` is blocked with a local notice. Incoming SKC1 messages can still be decoded.
+
+The phrase is always sent as readable text, including in **Always** mode. Encoding becomes available again when the next gameplay instance begins.
 
 ## Settings
 
@@ -335,6 +348,7 @@ Every input still delegates to the original hook chain.
 
 Applies the selected outgoing mode at the final chat-send boundary:
 
+- The shared safe word bypasses encoding and disables outgoing encoding for the current gameplay instance.
 - `off` passes normal outgoing text through unchanged.
 - `command` encodes raw strings beginning with `/skc` as a fallback for callers that bypass the standard chat UI parser.
 - `always` encodes normal outgoing text while leaving slash-command strings untouched.
@@ -345,6 +359,7 @@ Before applying `always`, the hook validates glyph-prefixed text with `Protocol.
 
 Checks displayed messages for the Mechanicus glyph and validates them with the protocol decoder.
 
+- The shared safe word is detected before packet decoding and passed through unchanged.
 - When incoming decoding is disabled, every message is passed through unchanged.
 - Invalid packets are passed through unchanged.
 - Valid incomplete chunks are withheld from local history.
@@ -368,6 +383,8 @@ debug_logging
 
 `mod.on_setting_changed` refreshes the cache. Selecting outgoing mode `off` clears any queued command text. Disabling incoming decoding clears partially collected messages so they cannot be completed unexpectedly after decoding is re-enabled.
 
+The safe-word state is separate from user settings. It blocks only outgoing encoding and is reset whenever DMF enters a new `StateGameplay` instance.
+
 The toggle keybind uses DMF's native `mod_toggle` keybind type. DMF disables hooks automatically, while Skitarii Chat explicitly disables and re-enables its registered `/skc` command in the lifecycle callbacks. `mod.on_disabled` clears pending command and chunk state; `mod.on_enabled` reloads the configured mode. Both callbacks echo the new state for non-initial toggles.
 
 `send_encoded_message` also rejects a missing channel handle with a user-facing message. This protects against a chat command that was queued immediately before the mod was disabled.
@@ -381,6 +398,7 @@ The configured chunk limit is clamped to the protocol range of 1 through 10 befo
 The feature avoids work in normal chat paths:
 
 - Messages without the three-byte Mechanicus prefix immediately delegate to Darktide.
+- Normal messages receive one short safe-word comparison before packet handling.
 - Encoding occurs only at the outgoing send boundary selected by the current mode.
 - Decoding occurs only for glyph-prefixed messages.
 - Packet sizes and chunk counts are bounded.
@@ -424,6 +442,7 @@ The integration test supplies small DMF and `Managers` stubs and covers:
 - Always-mode automatic encoding.
 - Slash-command preservation in Always mode.
 - Prevention of recursive packet encoding.
+- Safe-word passthrough, instance encoding disable, continued decoding, and next-instance reset.
 - Keybind lifecycle command disabling, re-enabling, and state echoes.
 - Missing-channel protection for a command queued during disabling.
 - Recovery from DMF's stale slash-command autocomplete GUI during end-of-round transitions.
